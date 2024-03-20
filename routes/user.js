@@ -4,6 +4,8 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 require('dotenv').config();
+const auth = require('../services/authentication');
+const checkRole = require('../services/checkRole');
 
 router.post('/signup',  (req, res) =>{
     let user = req.body;
@@ -93,7 +95,7 @@ router.post('/forgotPassword', (req, res) => {
 })
 
 
-router.get('/get', (req, res) => {
+router.get('/get', auth.authenticateToken, checkRole.checkRole,(req, res) => {
      var  query = "select id,name,email,contactNumber,status from user where role='user'";
      connection.query(query,(err,results) =>{
         if(!err){
@@ -105,7 +107,7 @@ router.get('/get', (req, res) => {
 })
 
 
-router.patch('/update', (req, res) => {
+router.patch('/update', auth.authenticateToken,checkRole.checkRole,(req, res) => {
     let user = req.body;
     var query = "update user set status=? where id=?";
     connection.query(query,[user.status, user.id],(err, results) => {
@@ -121,13 +123,35 @@ router.patch('/update', (req, res) => {
 })
 
 
-router.get('/checkToken', (req, res) => {
+router.get('/checkToken', auth.authenticateToken,(req, res) => {
     return res.status(200).json({message:"True"});
 })
 
 
 router.post('/changePassword', (req, res) => {
-    // const
+   const user = req.body;
+   const email = res.locals.email;
+   var query = "select * from user where email=? ans password=?";
+   connection.query(query,[email, user.oldPassword], (err, results) => {
+     if(!err){
+        if(results.length <= 0){
+            return res.status(400).json({message:"Incorrect old password"});
+        }else if(results[0].password == user.oldPassword){
+            query = "update user set password=? where email=?";
+            connection.query(query,[user.newPassword, email], (err, results) =>{
+              if(!err){
+                return res.status(200).json({message:"Password updated successfully"});
+              }else{
+                return res.status(500).json(err);
+              }
+            });
+        }else{
+            return res.status(400).json({message:"something went wrong. Please try again later"});
+        }
+     }else{
+        return res.status(500).json(err);
+     }
+   })
 })
 
 module.exports = router;
